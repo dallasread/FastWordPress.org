@@ -1,6 +1,8 @@
 #!/usr/bin/env ruby
 require "net/ssh"
+require "yaml"
 
+CONFIG = YAML.load_file("config.yaml")
 db = user = site = "#{ARGV[0]}".gsub(/[^0-9a-z]/i, "")[0..9]
 website = "#{user}.netbuild.co"
 website = ARGV[1] unless ARGV[1].nil?
@@ -13,12 +15,12 @@ else
   apache = "/etc/apache2/sites-available/#{website}.conf"
   wp_config = "#{public_html}/wp-config.php"
 
-  Net::SSH.start(ip, admin_username, password: admin_password) do |ssh|
+  Net::SSH.start(CONFIG["ip"], CONFIG["admin"]["username"], password: CONFIG["admin"]["password"]) do |ssh|
     [
       # => MySQL Setup
-      "mysql -u root -p#{admin_password} -e 'CREATE DATABASE IF NOT EXISTS #{db};'",
-      "mysql -u root -p#{admin_password} -e 'GRANT ALL PRIVILEGES ON #{db}.* TO #{user}@localhost IDENTIFIED BY \"#{password}\";'",
-      "mysql -u root -p#{admin_password} -e 'FLUSH PRIVILEGES;'",
+      "mysql -u root -p#{CONFIG["admin"]["password"]} -e 'CREATE DATABASE IF NOT EXISTS #{db};'",
+      "mysql -u root -p#{CONFIG["admin"]["password"]} -e 'GRANT ALL PRIVILEGES ON #{db}.* TO #{user}@localhost IDENTIFIED BY \"#{CONFIG["user"]["password"]}\";'",
+      "mysql -u root -p#{CONFIG["admin"]["password"]} -e 'FLUSH PRIVILEGES;'",
     
       # => Copy WP
       "cd",
@@ -31,11 +33,11 @@ else
       # => WP Config
       "sed -i 's/database_name_here/#{db}/g' #{wp_config}",
       "sed -i 's/username_here/#{user}/g' #{wp_config}",
-      "sed -i 's/password_here/#{password}/g' #{wp_config}",
+      "sed -i 's/password_here/#{CONFIG["user"]["password"]}/g' #{wp_config}",
   
       # => Apache Config
       "sudo cp -n /etc/apache2/sites-available/default #{apache}",
-      "sed -i 's/your_email_address/#{admin}/g' #{apache}",
+      "sed -i 's/your_email_address/#{CONFIG["admin"]["email"].gsub("@", "\@")}/g' #{apache}",
       "sed -i 's/website_here/#{website}/g' #{apache}",
       "sed -i 's/site_name_here/#{site}/g' #{apache}",
       "sudo a2ensite #{website}",
@@ -46,7 +48,7 @@ else
     
       # => FTP
       # "sudo useradd -m #{site} -d #{home} -s /bin/false",
-      # "echo -e \"#{password}\n#{password}\" | passwd #{site}",
+      # "echo -e \"#{CONFIG["user"]["password"]}\n#{CONFIG["user"]["password"]}\" | passwd #{site}",
       # "usermod -G filetransfer #{site}",
       # # "chown -R www-data:www-data #{home}",
       # "chown root:root #{home}",
